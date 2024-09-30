@@ -5,12 +5,12 @@ import numpy as np
 import pandas as pd
 import torch
 import tqdm
-from openai import OpenAI
+from openai import AzureOpenAI
 
 from routellm.evals.mmlu.domains import ALL_MMLU_DOMAINS
 
 THRESHOLD = 0.95
-client = OpenAI()
+client = AzureOpenAI()
 
 
 def check_data_contamination_similarity(train_embeddings, eval_prompts):

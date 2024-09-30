@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
-from openai import OpenAI
+from openai import AzureOpenAI
 
 from routellm.controller import ModelPair
 
@@ -24,7 +24,7 @@ ROUTED_PAIR = ModelPair(
 
 def select_sglang_backend(args):
     if args.backend.startswith("gpt") or args.backend.startswith("router-"):
-        backend = OpenAI(args.backend, base_url=f"{args.host}:{args.port}/v1")
+        backend = AzureOpenAI(args.backend, base_url=f"{args.host}:{args.port}/v1")
     else:
         raise ValueError(f"Invalid backend: {args.backend}")
     return backend

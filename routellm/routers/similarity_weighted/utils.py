@@ -4,11 +4,22 @@ import os
 
 import numpy as np
 import pandas as pd
-from openai import OpenAI
+# from openai import OpenAI
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from openai import AzureOpenAI
 from sklearn.linear_model import LogisticRegression
 
 choices = ["A", "B", "C", "D"]
-OPENAI_CLIENT = OpenAI()
+
+azure_credential = DefaultAzureCredential()
+token_provider = get_bearer_token_provider(azure_credential,
+    "https://cognitiveservices.azure.com/.default")
+
+OPENAI_CLIENT = AzureOpenAI(
+    api_version=os.getenv("AZURE_API_VERSION"),
+    azure_endpoint = os.getenv("AZURE_API_BASE"),
+    azure_ad_token_provider=token_provider
+)
 
 
 def compute_tiers(model_ratings, num_tiers):

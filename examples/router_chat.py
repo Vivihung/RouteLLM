@@ -6,7 +6,7 @@ import argparse
 import re
 
 import gradio as gr
-from openai import OpenAI
+from openai import AzureOpenAI
 
 # Argument parser setup
 parser = argparse.ArgumentParser(description="Chatbot Interface for RouteLLM")
@@ -36,7 +36,7 @@ openai_api_key = "EMPTY"
 openai_api_base = args.model_url
 
 # Create an OpenAI client to interact with the API server
-client = OpenAI(
+client = AzureOpenAI(
     api_key=openai_api_key,
     base_url=openai_api_base,
 )

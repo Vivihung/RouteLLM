@@ -40,7 +40,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
 
-    client = openai.OpenAI(
+    client = openai.AzureOpenAI(
         base_url=args.base_url,
         api_key=args.api_key,
     )

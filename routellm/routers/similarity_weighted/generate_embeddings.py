@@ -17,7 +17,7 @@ def get_embeddings(battles_df):
         lambda s: json.loads(s)[0].strip()
     )
 
-    client = openai.OpenAI(
+    client = openai.AzureOpenAI(
         api_key=os.environ["OPENAI_API_KEY"], base_url="https://api.openai.com/v1"
     )
 
