@@ -11,6 +11,7 @@ from huggingface_hub import hf_hub_download
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from litellm import completion
 
+from routellm.controller import ModelPair
 from routellm.routers.causal_llm.configs import RouterModelConfig
 from routellm.routers.causal_llm.llm_utils import (
     load_prompt_format,
@@ -58,7 +59,7 @@ class ReasoningModelRouter(Router):
         api_base: str,
         api_key: str,
         few_shot_examples: list,
-        model_pair: "ModelPair",
+        model_pair: ModelPair,
         system_prompt: str = "Choose between {strong} and {weak} for this query. Respond only with the model name.",
         max_tokens: int = 50,
         temperature: float = 0.0
