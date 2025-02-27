@@ -18,8 +18,8 @@ from routellm.routers.causal_llm.llm_utils import (
     to_openai_api_messages,
 )
 from routellm.routers.causal_llm.model import CausalLLMClassifier
-from routellm\routers\matrix_factorization\model import MODEL_IDS, MFModel
-from routellm\routers\similarity_weighted\utils import (
+from routellm.routers.matrix_factorization.model import MODEL_IDS, MFModel
+from routellm.routers.similarity_weighted.utils import (
     OPENAI_CLIENT,
     compute_elo_mle_with_tie,
     compute_tiers,
