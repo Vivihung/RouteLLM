@@ -18,8 +18,8 @@ from routellm.routers.causal_llm.llm_utils import (
     to_openai_api_messages,
 )
 from routellm.routers.causal_llm.model import CausalLLMClassifier
-from routellm.routers.matrix_factorization.model import MODEL_IDS, MFModel
-from routellm.routers.similarity_weighted.utils import (
+from routellm\routers\matrix_factorization\model import MODEL_IDS, MFModel
+from routellm\routers\similarity_weighted\utils import (
     OPENAI_CLIENT,
     compute_elo_mle_with_tie,
     compute_tiers,
@@ -53,6 +53,17 @@ class Router(abc.ABC):
 
 
 class ReasoningModelRouter(Router):
+    """
+    Router that uses a reasoning LLM to choose between model pairs.
+    
+    Inherits from Router base class and implements the calculate_strong_win_rate method
+    rather than overriding route() because:
+    
+    1. Maintains consistent interface with other routers that use probabilistic approaches
+    2. Allows reuse of base class threshold comparison logic in route()
+    3. Enables fair comparison with other routers through the same win rate metric
+    4. Preserves the routing flow: calculate_win_rate -> compare to threshold -> select model
+    """
     def __init__(
         self,
         reasoning_model: str,
@@ -64,6 +75,7 @@ class ReasoningModelRouter(Router):
         max_tokens: int = 50,
         temperature: float = 0.0
     ):
+        # Initialize with configuration for the reasoning model API
         self.reasoning_model = reasoning_model
         self.api_base = api_base
         self.api_key = api_key
@@ -77,6 +89,7 @@ class ReasoningModelRouter(Router):
         self.temperature = temperature
         
     def _build_messages(self, prompt: str) -> list:
+        # Construct the prompt with system message and few-shot examples
         return [{
             "role": "system",
             "content": self.system_prompt
@@ -86,7 +99,16 @@ class ReasoningModelRouter(Router):
         }]
 
     def calculate_strong_win_rate(self, prompt: str) -> float:
+        """
+        Queries reasoning model and converts response to win probability.
+        
+        Implements abstract method from Router class to:
+        - Maintain compatibility with evaluation framework
+        - Enable mixing with other routing strategies
+        - Allow threshold-based routing through base class route() method
+        """
         try:
+            # Call reasoning model API with constructed messages
             response = completion(
                 model=self.reasoning_model,
                 messages=self._build_messages(prompt),
@@ -101,6 +123,7 @@ class ReasoningModelRouter(Router):
             return 0.5  # Fallback to neutral
 
     def _parse_response(self, text: str) -> float:
+        # Convert model's text response to numerical win probability
         text = text.lower()
         strong = self.model_pair.strong.lower()
         weak = self.model_pair.weak.lower()
