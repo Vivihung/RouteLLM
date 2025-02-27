@@ -1,0 +1,14 @@
+controller = Controller(
+    routers=["reasoning_model"],
+    strong_model="gpt-4",
+    weak_model="mixtral-8x7b",
+    config={
+        "reasoning_model": {
+            "reasoning_model": "claude-3-opus",
+            "api_base": "https://api.anthropic.com/v1",
+            "api_key": "sk-ant-...",
+            "few_shot_examples": [...],
+            "temperature": 0.1
+        }
+    }
+)

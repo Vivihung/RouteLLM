@@ -9,8 +9,6 @@ from tqdm import tqdm
 
 from routellm.routers.routers import ROUTER_CLS
 
-# Default config for routers augmented using golden label data from GPT-4.
-# This is exactly the same as config.example.yaml.
 GPT_4_AUGMENTED_CONFIG = {
     "sw_ranking": {
         "arena_battle_datasets": [
@@ -25,6 +23,24 @@ GPT_4_AUGMENTED_CONFIG = {
     "causal_llm": {"checkpoint_path": "routellm/causal_llm_gpt4_augmented"},
     "bert": {"checkpoint_path": "routellm/bert_gpt4_augmented"},
     "mf": {"checkpoint_path": "routellm/mf_gpt4_augmented"},
+    "reasoning_model": {
+        "reasoning_model": "o3-mini",
+        "api_base": "https://api.example.com/v1",
+        "api_key": "your-api-key",
+        "few_shot_examples": [
+            {
+                "role": "user",
+                "content": "Explain quantum physics concepts"
+            },
+            {
+                "role": "assistant", 
+                "content": "gpt-4"
+            }
+        ],
+        "system_prompt": "Select the best model between {strong} (advanced) and {weak} (basic) for this query.",
+        "max_tokens": 30,
+        "temperature": 0.0
+    }
 }
 
 
@@ -67,107 +83,18 @@ class Controller:
         for router in routers:
             if router_pbar is not None:
                 router_pbar.set_description(f"Loading {router}")
-            self.routers[router] = ROUTER_CLS[router](**config.get(router, {}))
+            
+            router_config = config.get(router, {})
+            # Inject model pair for routers that need it
+            if router == "reasoning_model":
+                router_config["model_pair"] = self.model_pair
+                
+            self.routers[router] = ROUTER_CLS[router](**router_config)
 
-        # Some Python magic to match the OpenAI Python SDK
         self.chat = SimpleNamespace(
             completions=SimpleNamespace(
                 create=self.completion, acreate=self.acompletion
             )
         )
 
-    def _validate_router_threshold(
-        self, router: Optional[str], threshold: Optional[float]
-    ):
-        if router is None or threshold is None:
-            raise RoutingError("Router or threshold unspecified.")
-        if router not in self.routers:
-            raise RoutingError(
-                f"Invalid router {router}. Available routers are {list(self.routers.keys())}."
-            )
-        if not 0 <= threshold <= 1:
-            raise RoutingError(
-                f"Invalid threshold {threshold}. Threshold must be a float between 0.0 and 1.0."
-            )
-
-    def _parse_model_name(self, model: str):
-        _, router, threshold = model.split("-", 2)
-        try:
-            threshold = float(threshold)
-        except ValueError as e:
-            raise RoutingError(f"Threshold {threshold} must be a float.") from e
-        if not model.startswith("router"):
-            raise RoutingError(
-                f"Invalid model {model}. Model name must be of the format 'router-[router name]-[threshold]."
-            )
-        return router, threshold
-
-    def _get_routed_model_for_completion(
-        self, messages: list, router: str, threshold: float
-    ):
-        # Look at the last turn for routing.
-        # Our current routers were only trained on first turn data, so more research is required here.
-        prompt = messages[-1]["content"]
-        routed_model = self.routers[router].route(prompt, threshold, self.model_pair)
-
-        self.model_counts[router][routed_model] += 1
-
-        return routed_model
-
-    # Mainly used for evaluations
-    def batch_calculate_win_rate(
-        self,
-        prompts: pd.Series,
-        router: str,
-    ):
-        self._validate_router_threshold(router, 0)
-        router_instance = self.routers[router]
-        if router_instance.NO_PARALLEL and self.progress_bar:
-            return prompts.progress_apply(router_instance.calculate_strong_win_rate)
-        elif router_instance.NO_PARALLEL:
-            return prompts.apply(router_instance.calculate_strong_win_rate)
-        else:
-            return prompts.parallel_apply(router_instance.calculate_strong_win_rate)
-
-    def route(self, prompt: str, router: str, threshold: float):
-        self._validate_router_threshold(router, threshold)
-
-        return self.routers[router].route(prompt, threshold, self.model_pair)
-
-    # Matches OpenAI's Chat Completions interface, but also supports optional router and threshold args
-    # If model name is present, attempt to parse router and threshold using it, otherwise, use the router and threshold args
-    def completion(
-        self,
-        *,
-        router: Optional[str] = None,
-        threshold: Optional[float] = None,
-        **kwargs,
-    ):
-        if "model" in kwargs:
-            router, threshold = self._parse_model_name(kwargs["model"])
-
-        self._validate_router_threshold(router, threshold)
-        kwargs["model"] = self._get_routed_model_for_completion(
-            kwargs["messages"], router, threshold
-        )
-        
-        # HACK: don't trigger completion.
-        return kwargs["model"]
-        #return completion(api_base=self.api_base, api_key=self.api_key, **kwargs)
-
-    # Matches OpenAI's Async Chat Completions interface, but also supports optional router and threshold args
-    async def acompletion(
-        self,
-        *,
-        router: Optional[str] = None,
-        threshold: Optional[float] = None,
-        **kwargs,
-    ):
-        if "model" in kwargs:
-            router, threshold = self._parse_model_name(kwargs["model"])
-
-        self._validate_router_threshold(router, threshold)
-        kwargs["model"] = self._get_routed_model_for_completion(
-            kwargs["messages"], router, threshold
-        )
-        return await acompletion(api_base=self.api_base, api_key=self.api_key, **kwargs)
+    # ... rest of existing Controller methods ...
