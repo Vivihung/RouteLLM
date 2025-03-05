@@ -9,9 +9,9 @@ import torch
 from datasets import concatenate_datasets, load_dataset
 from huggingface_hub import hf_hub_download
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from typing import Literal
 from litellm import completion
 
-from routellm.controller import ModelPair
 from routellm.routers.causal_llm.configs import RouterModelConfig
 from routellm.routers.causal_llm.llm_utils import (
     load_prompt_format,
@@ -55,53 +55,56 @@ class Router(abc.ABC):
 class ReasoningModelRouter(Router):
     """
     Router that uses a reasoning LLM to choose between model pairs.
-    
+
     Inherits from Router base class and implements the calculate_strong_win_rate method
     rather than overriding route() because:
-    
+
     1. Maintains consistent interface with other routers that use probabilistic approaches
     2. Allows reuse of base class threshold comparison logic in route()
     3. Enables fair comparison with other routers through the same win rate metric
     4. Preserves the routing flow: calculate_win_rate -> compare to threshold -> select model
     """
+
+    ReasoningModel = Literal["o3-mini", "claude-3.7"]
+
     def __init__(
         self,
-        reasoning_model: str,
+        reasoning_model: ReasoningModel,
+        model_id: str,
         api_base: str,
         api_key: str,
         few_shot_examples: list,
-        model_pair: ModelPair,
-        system_prompt: str = "Choose between {strong} and {weak} for this query. Respond only with the model name.",
-        max_tokens: int = 50,
-        temperature: float = 0.0
+        model_pair: any,  # HACK: Cannot use ModelPair because of circular import
+        instruct_prompt: str = "Choose between {strong} and {weak} for this query. Respond only with the model name.",
     ):
         # Initialize with configuration for the reasoning model API
         self.reasoning_model = reasoning_model
+        self.model_id = model_id
         self.api_base = api_base
         self.api_key = api_key
         self.few_shot_examples = few_shot_examples
         self.model_pair = model_pair
-        self.system_prompt = system_prompt.format(
-            strong=model_pair.strong,
-            weak=model_pair.weak
+        self.instruct_prompt = instruct_prompt.format(
+            strong=model_pair.strong, weak=model_pair.weak
         )
-        self.max_tokens = max_tokens
-        self.temperature = temperature
-        
+
     def _build_messages(self, prompt: str) -> list:
         # Construct the prompt with system message and few-shot examples
-        return [{
-            "role": "system",
-            "content": self.system_prompt
-        }] + self.few_shot_examples + [{
-            "role": "user",
-            "content": f"Query: {prompt}\nResponse:"
-        }]
+        return (
+            [
+                {
+                    "role": self._get_role(self.reasoning_model),
+                    "content": self.instruct_prompt,
+                }
+            ]
+            + self.few_shot_examples
+            + [{"role": "user", "content": f"Query: {prompt}\nResponse:"}]
+        )
 
     def calculate_strong_win_rate(self, prompt: str) -> float:
         """
         Queries reasoning model and converts response to win probability.
-        
+
         Implements abstract method from Router class to:
         - Maintain compatibility with evaluation framework
         - Enable mixing with other routing strategies
@@ -110,12 +113,10 @@ class ReasoningModelRouter(Router):
         try:
             # Call reasoning model API with constructed messages
             response = completion(
-                model=self.reasoning_model,
+                model=self.model_id,
                 messages=self._build_messages(prompt),
                 api_base=self.api_base,
-                api_key=self.api_key,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature
+                api_key=self.api_key
             )
             return self._parse_response(response.choices[0].message.content)
         except Exception as e:
@@ -127,15 +128,20 @@ class ReasoningModelRouter(Router):
         text = text.lower()
         strong = self.model_pair.strong.lower()
         weak = self.model_pair.weak.lower()
-        
+
         strong_match = re.search(rf"\b{re.escape(strong)}\b", text)
         weak_match = re.search(rf"\b{re.escape(weak)}\b", text)
-        
+
         if strong_match and not weak_match:
             return 1.0
         elif weak_match and not strong_match:
             return 0.0
         return 0.5  # Neutral if ambiguous
+
+    def _get_role(
+        model: ReasoningModel,
+    ) -> Literal["system", "user", "assistant", "developer"]:
+        return "developer" if model == "o3-mini" else "system"
 
 
 @no_parallel

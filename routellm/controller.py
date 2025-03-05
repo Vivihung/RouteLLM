@@ -27,6 +27,7 @@ GPT_4_AUGMENTED_CONFIG = {
     "mf": {"checkpoint_path": "routellm/mf_gpt4_augmented"},
     "reasoning_model": {
         "reasoning_model": "o3-mini",
+        "model_id": "your-deployment-id",
         "api_base": "https://api.example.com/v1",
         "api_key": "your-api-key",
         "few_shot_examples": [
@@ -39,9 +40,7 @@ GPT_4_AUGMENTED_CONFIG = {
                 "content": "gpt-4"
             }
         ],
-        "system_prompt": "Select the best model between {strong} (advanced) and {weak} (basic) for this query.",
-        "max_tokens": 30,
-        "temperature": 0.0
+        "instruct_prompt": "Select the best model between {strong} (advanced) and {weak} (basic) for this query.",
     }
 }
 
